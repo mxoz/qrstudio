@@ -1,33 +1,6 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import QRCodeStyling from "qr-code-styling";
-
-const qrCode = new QRCodeStyling({
-  width: 320,
-  height: 320,
-  type: "canvas",
-  data: "https://example.com",
-  margin: 12,
-  qrOptions: {
-    errorCorrectionLevel: "H",
-  },
-  dotsOptions: {
-    type: "rounded",
-    color: "#111111",
-  },
-  cornersSquareOptions: {
-    type: "extra-rounded",
-    color: "#111111",
-  },
-  cornersDotOptions: {
-    type: "dot",
-    color: "#4f46e5",
-  },
-  backgroundOptions: {
-    color: "#ffffff",
-  },
-});
 
 type DotsType = "square" | "dots" | "rounded" | "extra-rounded";
 type GradientPreset = "indigoPinkGreen" | "sunset" | "aqua" | "mono";
@@ -38,6 +11,7 @@ const PREVIEW_SIZE = 320;
 
 export default function Page() {
   const ref = useRef<HTMLDivElement | null>(null);
+  const qrInstance = useRef<any | null>(null);
 
   const clampExportSize = (value: number) => {
     const v = Number.isFinite(value) ? value : 1024;
@@ -83,10 +57,49 @@ export default function Page() {
   const [downloadFormat, setDownloadFormat] =
     useState<DownloadFormat>("png");
 
+  // qr-code-styling nur im Browser laden und Instanz erzeugen
   useEffect(() => {
-    if (ref.current) {
-      qrCode.append(ref.current);
-    }
+    let cancelled = false;
+
+    (async () => {
+      const mod = await import("qr-code-styling");
+      const QRCodeStyling = (mod as any).default;
+
+      if (!ref.current || cancelled) return;
+
+      const instance = new QRCodeStyling({
+        width: PREVIEW_SIZE,
+        height: PREVIEW_SIZE,
+        type: "canvas",
+        data: "https://example.com",
+        margin: 12,
+        qrOptions: {
+          errorCorrectionLevel: "H",
+        },
+        dotsOptions: {
+          type: "rounded",
+          color: "#111111",
+        },
+        cornersSquareOptions: {
+          type: "extra-rounded",
+          color: "#111111",
+        },
+        cornersDotOptions: {
+          type: "dot",
+          color: "#4f46e5",
+        },
+        backgroundOptions: {
+          color: "#ffffff",
+        },
+      });
+
+      qrInstance.current = instance;
+      instance.append(ref.current);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Helfer fürs WIFI-Format
@@ -199,7 +212,7 @@ export default function Page() {
 
       return {
         type: dotsType,
-        color: undefined,   // sicherstellen, dass nur Gradient benutzt wird
+        color: undefined, // nur Gradient benutzen
         gradient: {
           type: "linear",
           rotation: 0.5,
@@ -208,7 +221,7 @@ export default function Page() {
       };
     }
 
-    // Gradient explizit abschalten, sonst bleibt er intern hängen
+    // Gradient explizit abschalten
     return {
       type: dotsType,
       color: fgColor,
@@ -218,10 +231,12 @@ export default function Page() {
 
   // QR-Vorschau (immer PREVIEW_SIZE)
   useEffect(() => {
+    if (!qrInstance.current) return;
+
     const data = buildDataFromForm();
     const dotsOptions = buildDotsOptions();
 
-    qrCode.update({
+    qrInstance.current.update({
       data: data || " ",
       width: PREVIEW_SIZE,
       height: PREVIEW_SIZE,
@@ -261,6 +276,8 @@ export default function Page() {
   ]);
 
   const handleDownload = async () => {
+    if (!qrInstance.current) return;
+
     const data = buildDataFromForm();
     const dotsOptions = buildDotsOptions();
 
@@ -277,19 +294,19 @@ export default function Page() {
     };
 
     // für Export temporär auf Export-Größe umstellen
-    qrCode.update({
+    qrInstance.current.update({
       ...baseConfig,
       width: exportSize,
       height: exportSize,
     });
 
-    await qrCode.download({
+    await qrInstance.current.download({
       name: "fancy-qr",
       extension: downloadFormat,
     });
 
     // danach Vorschau wieder auf PREVIEW_SIZE zurücksetzen
-    qrCode.update({
+    qrInstance.current.update({
       ...baseConfig,
       width: PREVIEW_SIZE,
       height: PREVIEW_SIZE,
