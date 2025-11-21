@@ -1,1210 +1,250 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import Link from "next/link";
 
-type DotsType = "square" | "dots" | "rounded" | "extra-rounded";
-type GradientPreset = "indigoPinkGreen" | "sunset" | "aqua" | "mono";
-type DownloadFormat = "png" | "svg";
-type ContentType = "text" | "wifi" | "email" | "sms" | "tel" | "vcard";
+export default function Dashboard() {
+  const [darkMode, setDarkMode] = useState(true);
 
-const PREVIEW_SIZE = 320;
+  const background = darkMode
+    ? "radial-gradient(circle at 20% 20%, #0b102a, #050816 60%)"
+    : "radial-gradient(circle at 20% 20%, #dbe4ff, #f3f4f7 60%)";
 
-export default function Page() {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const qrInstance = useRef<any | null>(null);
+  const baseTextColor = darkMode ? "#e5e7eb" : "#111827";
+  const mutedTextColor = darkMode ? "#9ca3af" : "#6b7280";
 
-  const clampExportSize = (value: number) => {
-    const v = Number.isFinite(value) ? value : 1024;
-    return Math.min(2048, Math.max(160, v));
-  };
+  const tileBorderPrimary = darkMode
+    ? "1px solid rgba(129,140,248,0.6)"
+    : "1px solid rgba(79,70,229,0.6)";
 
-  // Inhaltstyp
-  const [contentType, setContentType] = useState<ContentType>("text");
+  const tileBgPrimary = darkMode
+    ? "radial-gradient(circle at top left, rgba(79,70,229,0.35), transparent 55%), rgba(15,23,42,0.95)"
+    : "radial-gradient(circle at top left, rgba(129,140,248,0.25), transparent 55%), #ffffff";
 
-  // Content-States
-  const [textValue, setTextValue] = useState("https://example.com");
-
-  const [wifiSsid, setWifiSsid] = useState("");
-  const [wifiAuth, setWifiAuth] = useState<"WPA" | "WEP" | "nopass">("WPA");
-  const [wifiPassword, setWifiPassword] = useState("");
-  const [wifiHidden, setWifiHidden] = useState(false);
-
-  const [emailTo, setEmailTo] = useState("");
-  const [emailSubject, setEmailSubject] = useState("");
-  const [emailBody, setEmailBody] = useState("");
-
-  const [smsTo, setSmsTo] = useState("");
-  const [smsBody, setSmsBody] = useState("");
-
-  const [telNumber, setTelNumber] = useState("");
-
-  const [vcardFirst, setVcardFirst] = useState("");
-  const [vcardLast, setVcardLast] = useState("");
-  const [vcardOrg, setVcardOrg] = useState("");
-  const [vcardTel, setVcardTel] = useState("");
-  const [vcardEmail, setVcardEmail] = useState("");
-
-  // Design-States
-  const [dotsType, setDotsType] = useState<DotsType>("rounded");
-  const [useGradient, setUseGradient] = useState(true);
-  const [gradientPreset, setGradientPreset] =
-    useState<GradientPreset>("indigoPinkGreen");
-  const [fgColor, setFgColor] = useState("#111111");
-  const [bgColor, setBgColor] = useState("#ffffff");
-  const [logoUrl, setLogoUrl] = useState<string>("");
-  const [exportSize, setExportSize] = useState(1024); // nur für Download
-  const [animatedBg, setAnimatedBg] = useState(false);
-  const [downloadFormat, setDownloadFormat] =
-    useState<DownloadFormat>("png");
-
-  // qr-code-styling nur im Browser laden und Instanz erzeugen
-  useEffect(() => {
-    let cancelled = false;
-
-    (async () => {
-      const mod = await import("qr-code-styling");
-      const QRCodeStyling = (mod as any).default;
-
-      if (!ref.current || cancelled) return;
-
-      const instance = new QRCodeStyling({
-        width: PREVIEW_SIZE,
-        height: PREVIEW_SIZE,
-        type: "canvas",
-        data: "https://example.com",
-        margin: 12,
-        qrOptions: {
-          errorCorrectionLevel: "H",
-        },
-        dotsOptions: {
-          type: "rounded",
-          color: "#111111",
-        },
-        cornersSquareOptions: {
-          type: "extra-rounded",
-          color: "#111111",
-        },
-        cornersDotOptions: {
-          type: "dot",
-          color: "#4f46e5",
-        },
-        backgroundOptions: {
-          color: "#ffffff",
-        },
-      });
-
-      qrInstance.current = instance;
-      instance.append(ref.current);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Helfer fürs WIFI-Format
-  const escapeWifiValue = (value: string) =>
-    value.replace(/([\\;,:"])/g, "\\$1");
-
-  // vCard-Build
-  const buildVcard = () => {
-    if (!vcardFirst && !vcardLast && !vcardOrg && !vcardTel && !vcardEmail) {
-      return "";
-    }
-    const lines: string[] = [
-      "BEGIN:VCARD",
-      "VERSION:3.0",
-      `N:${vcardLast};${vcardFirst};;;`,
-      `FN:${[vcardFirst, vcardLast].filter(Boolean).join(" ") || vcardOrg}`,
-    ];
-    if (vcardOrg) lines.push(`ORG:${vcardOrg}`);
-    if (vcardTel) lines.push(`TEL;TYPE=CELL,VOICE:${vcardTel}`);
-    if (vcardEmail) lines.push(`EMAIL;TYPE=INTERNET:${vcardEmail}`);
-    lines.push("END:VCARD");
-    return lines.join("\n");
-  };
-
-  // Daten aus Formularfeldern generieren
-  const buildDataFromForm = (): string => {
-    switch (contentType) {
-      case "text": {
-        return textValue.trim();
-      }
-      case "wifi": {
-        if (!wifiSsid.trim()) return "";
-        let wifi = "WIFI:";
-        wifi += `T:${wifiAuth};`;
-        wifi += `S:${escapeWifiValue(wifiSsid.trim())};`;
-        if (wifiAuth !== "nopass" && wifiPassword) {
-          wifi += `P:${escapeWifiValue(wifiPassword)};`;
-        }
-        if (wifiHidden) {
-          wifi += "H:true;";
-        }
-        wifi += ";";
-        return wifi;
-      }
-      case "email": {
-        if (!emailTo.trim()) return "";
-        const params: string[] = [];
-        if (emailSubject.trim()) {
-          params.push("subject=" + encodeURIComponent(emailSubject.trim()));
-        }
-        if (emailBody.trim()) {
-          params.push("body=" + encodeURIComponent(emailBody.trim()));
-        }
-        const query = params.length ? "?" + params.join("&") : "";
-        return `mailto:${encodeURIComponent(emailTo.trim())}${query}`;
-      }
-      case "sms": {
-        if (!smsTo.trim()) return "";
-        if (smsBody.trim()) {
-          return `SMSTO:${smsTo.trim()}:${smsBody.trim()}`;
-        }
-        return `SMSTO:${smsTo.trim()}:`;
-      }
-      case "tel": {
-        if (!telNumber.trim()) return "";
-        return `tel:${telNumber.trim()}`;
-      }
-      case "vcard": {
-        return buildVcard();
-      }
-      default:
-        return "";
-    }
-  };
-
-  // Dots-Options (mit/ohne Gradient)
-  const buildDotsOptions = (): any => {
-    if (useGradient) {
-      let colorStops;
-      switch (gradientPreset) {
-        case "sunset":
-          colorStops = [
-            { offset: 0, color: "#f97316" },
-            { offset: 0.5, color: "#ec4899" },
-            { offset: 1, color: "#6366f1" },
-          ];
-          break;
-        case "aqua":
-          colorStops = [
-            { offset: 0, color: "#22c55e" },
-            { offset: 0.5, color: "#06b6d4" },
-            { offset: 1, color: "#0ea5e9" },
-          ];
-          break;
-        case "mono":
-          colorStops = [
-            { offset: 0, color: "#0f172a" },
-            { offset: 1, color: "#64748b" },
-          ];
-          break;
-        case "indigoPinkGreen":
-        default:
-          colorStops = [
-            { offset: 0, color: "#4f46e5" },
-            { offset: 0.5, color: "#ec4899" },
-            { offset: 1, color: "#22c55e" },
-          ];
-          break;
-      }
-
-      return {
-        type: dotsType,
-        color: undefined, // nur Gradient benutzen
-        gradient: {
-          type: "linear",
-          rotation: 0.5,
-          colorStops,
-        },
-      };
-    }
-
-    // Gradient explizit abschalten
-    return {
-      type: dotsType,
-      color: fgColor,
-      gradient: null,
-    };
-  };
-
-  // QR-Vorschau (immer PREVIEW_SIZE)
-  useEffect(() => {
-    if (!qrInstance.current) return;
-
-    const data = buildDataFromForm();
-    const dotsOptions = buildDotsOptions();
-
-    qrInstance.current.update({
-      data: data || " ",
-      width: PREVIEW_SIZE,
-      height: PREVIEW_SIZE,
-      backgroundOptions: { color: bgColor },
-      dotsOptions,
-      image: logoUrl || undefined,
-      imageOptions: {
-        crossOrigin: "anonymous",
-        margin: 4,
-        imageSize: 0.28,
-      },
-    });
-  }, [
-    contentType,
-    textValue,
-    wifiSsid,
-    wifiAuth,
-    wifiPassword,
-    wifiHidden,
-    emailTo,
-    emailSubject,
-    emailBody,
-    smsTo,
-    smsBody,
-    telNumber,
-    vcardFirst,
-    vcardLast,
-    vcardOrg,
-    vcardTel,
-    vcardEmail,
-    dotsType,
-    useGradient,
-    gradientPreset,
-    fgColor,
-    bgColor,
-    logoUrl,
-  ]);
-
-  const handleDownload = async () => {
-    if (!qrInstance.current) return;
-
-    const data = buildDataFromForm();
-    const dotsOptions = buildDotsOptions();
-
-    const baseConfig = {
-      data: data || " ",
-      backgroundOptions: { color: bgColor },
-      dotsOptions,
-      image: logoUrl || undefined,
-      imageOptions: {
-        crossOrigin: "anonymous",
-        margin: 4,
-        imageSize: 0.28,
-      },
-    };
-
-    // für Export temporär auf Export-Größe umstellen
-    qrInstance.current.update({
-      ...baseConfig,
-      width: exportSize,
-      height: exportSize,
-    });
-
-    await qrInstance.current.download({
-      name: "fancy-qr",
-      extension: downloadFormat,
-    });
-
-    // danach Vorschau wieder auf PREVIEW_SIZE zurücksetzen
-    qrInstance.current.update({
-      ...baseConfig,
-      width: PREVIEW_SIZE,
-      height: PREVIEW_SIZE,
-    });
-  };
+  const tileBgPlaceholder = darkMode
+    ? "rgba(15,23,42,0.8)"
+    : "rgba(241,245,249,0.9)";
 
   return (
     <div
-      className="min-h-screen px-4 py-6 md:px-10 md:py-10"
+      className="min-h-screen flex items-start justify-center px-4 md:px-10 py-8 md:py-10"
       style={{
-        background:
-          "radial-gradient(circle at top left, rgba(79,70,229,0.3), transparent 55%)," +
-          "radial-gradient(circle at bottom right, rgba(56,189,248,0.25), transparent 50%)," +
-          "#050816",
-        color: "#f9fafb",
+        background,
+        color: baseTextColor,
         fontFamily:
           'system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif',
       }}
     >
-      <div className="max-w-5xl mx-auto flex flex-col gap:4 md:gap-6">
-        {/* Header */}
+      <div className="max-w-5xl w-full">
+        {/* TOP BAR */}
         <header
           style={{
             borderRadius: 999,
             padding: "10px 18px",
-            background:
-              "linear-gradient(135deg, rgba(15,23,42,0.9), rgba(15,23,42,0.4))",
-            border: "1px solid rgba(148,163,184,0.35)",
+            marginBottom: 24,
+            background: darkMode
+              ? "rgba(15,23,42,0.9)"
+              : "rgba(255,255,255,0.95)",
+            border: darkMode
+              ? "1px solid rgba(148,163,184,0.35)"
+              : "1px solid rgba(148,163,184,0.5)",
+            backdropFilter: "blur(20px)",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            backdropFilter: "blur(24px)",
           }}
         >
-          <div
-            style={{
-              fontWeight: 700,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              fontSize: "0.9rem",
-              color: "#9ca3af",
-            }}
-          >
-            QR<span style={{ color: "#4f46e5" }}>Studio</span>
-          </div>
           <span
             style={{
-              fontSize: "0.75rem",
-              padding: "4px 10px",
-              borderRadius: 999,
-              border: "1px solid rgba(148,163,184,0.45)",
-              background: "rgba(15,23,42,0.6)",
-              color: "#9ca3af",
+              fontSize: "0.85rem",
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              opacity: 0.8,
             }}
           >
-            Next + qr-code-styling
+            Dashboard
           </span>
+
+          <button
+            onClick={() => setDarkMode((v) => !v)}
+            style={{
+              padding: "6px 14px",
+              borderRadius: 999,
+              background: darkMode
+                ? "rgba(255,255,255,0.06)"
+                : "rgba(15,23,42,0.06)",
+              border: "1px solid rgba(148,163,184,0.35)",
+              fontSize: "0.8rem",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              color: mutedTextColor,
+              cursor: "pointer",
+            }}
+          >
+            <span>{darkMode ? "🌙" : "☀️"}</span>
+            <span>{darkMode ? "Dark UI" : "Light UI"}</span>
+          </button>
         </header>
 
-        <main className="grid gap-4 md:gap-5 md:grid-cols-[minmax(0,1.6fr)_minmax(0,1.3fr)]">
-          {/* LEFT: Inhalt + Design */}
-          <section
+        {/* TITLE + SUBTITLE */}
+        <section style={{ marginBottom: 24 }}>
+          <h1
             style={{
-              borderRadius: 22,
-              padding: "18px 18px 16px",
-              background:
-                "radial-gradient(circle at top left, rgba(79,70,229,0.12), transparent 55%)," +
-                "linear-gradient(145deg, rgba(15,23,42,0.96), rgba(15,23,42,0.9))",
-              border: "1px solid rgba(148,163,184,0.35)",
-              boxShadow: "0 24px 60px rgba(15,23,42,0.7)",
-              display: "flex",
-              flexDirection: "column",
-              gap: 10,
+              fontFamily: '"JetBrains Mono", Menlo, Monaco, monospace',
+              fontSize: "3.4rem",
+              fontWeight: 600,
+              letterSpacing: "0.03em",
+              marginBottom: "4px",
+              color: darkMode ? "#c7d2fe" : "#1e293b",
+              textShadow: darkMode
+                ? "0 0 25px rgba(99,102,241,0.55)"
+                : "0 0 12px rgba(99,102,241,0.25)",
             }}
           >
-            <div>
-              <h1 style={{ fontSize: "1.4rem", margin: 0 }}>Fancy QR Generator</h1>
-              <p style={{ fontSize: "0.85rem", color: "#9ca3af", marginTop: 4 }}>
-                Inhaltstyp wählen, Daten eingeben, Style einstellen – fertig.
+            mx:omnitools
+          </h1>
+
+          <div
+            style={{
+              fontSize: "0.85rem",
+              letterSpacing: "0.4em",
+              textTransform: "uppercase",
+              color: mutedTextColor,
+              marginBottom: 10,
+            }}
+          >
+            Suite
+          </div>
+
+        </section>
+
+        {/* MODULE GRID */}
+        <section className="grid gap-4 md:gap-6 md:grid-cols-3">
+          {/* Modul 1: QR Studio */}
+          <Link href="/qr-studio" className="no-underline">
+            <div
+              style={{
+                borderRadius: 22,
+                padding: "18px 18px 20px",
+                background: tileBgPrimary,
+                border: tileBorderPrimary,
+                boxShadow: darkMode
+                  ? "0 18px 45px rgba(0,0,0,0.45)"
+                  : "0 10px 25px rgba(15,23,42,0.12)",
+                cursor: "pointer",
+              }}
+            >
+              <div
+                style={{
+                  opacity: 0.6,
+                  fontSize: "0.75rem",
+                  letterSpacing: "0.12em",
+                  textTransform: "uppercase",
+                  marginBottom: 6,
+                }}
+              >
+                Modul
+              </div>
+              <div
+                style={{
+                  fontSize: "1.2rem",
+                  fontWeight: 600,
+                  marginBottom: 6,
+                }}
+              >
+                QR Studio
+              </div>
+              <p style={{ opacity: 0.75, fontSize: "0.85rem" }}>
+                Erstellung von QR-Codes mit Farben, Logos, Fehlerkorrektur und
+                Exportgrößen von 128px bis 2048px.
               </p>
             </div>
+          </Link>
 
-            {/* Inhaltstyp */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <label style={{ fontSize: "0.8rem", color: "#9ca3af" }}>
-                Inhaltstyp
-              </label>
-              <select
-                value={contentType}
-                onChange={(e) =>
-                  setContentType(e.target.value as ContentType)
-                }
-                style={{
-                  borderRadius: 10,
-                  border: "1px solid rgba(148,163,184,0.4)",
-                  background: "rgba(15,23,42,0.9)",
-                  color: "#f9fafb",
-                  padding: "8px 10px",
-                  fontSize: "0.85rem",
-                }}
-              >
-                <option value="text">Text / URL</option>
-                <option value="wifi">WLAN</option>
-                <option value="email">E-Mail</option>
-                <option value="sms">SMS</option>
-                <option value="tel">Telefonnummer</option>
-                <option value="vcard">vCard / Kontakt</option>
-              </select>
-            </div>
-
-            {/* Content-Felder je Typ */}
-            <div style={{ marginTop: 4 }}>
-              {contentType === "text" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <label style={{ fontSize: "0.8rem", color: "#9ca3af" }}>
-                    Text oder URL
-                  </label>
-                  <textarea
-                    value={textValue}
-                    onChange={(e) => setTextValue(e.target.value)}
-                    rows={3}
-                    style={{
-                      borderRadius: 10,
-                      border: "1px solid rgba(148,163,184,0.4)",
-                      background: "rgba(15,23,42,0.9)",
-                      color: "#f9fafb",
-                      padding: "8px 10px",
-                      fontSize: "0.85rem",
-                      resize: "vertical",
-                    }}
-                  />
-                </div>
-              )}
-
-              {contentType === "wifi" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: 8,
-                    }}
-                  >
-                    <div style={{ flex: 1, minWidth: 140 }}>
-                      <label
-                        style={{ fontSize: "0.8rem", color: "#9ca3af" }}
-                      >
-                        SSID
-                      </label>
-                      <input
-                        type="text"
-                        value={wifiSsid}
-                        onChange={(e) => setWifiSsid(e.target.value)}
-                        placeholder="WLAN-Name"
-                        style={{
-                          width: "100%",
-                          borderRadius: 10,
-                          border: "1px solid rgba(148,163,184,0.4)",
-                          background: "rgba(15,23,42,0.9)",
-                          color: "#f9fafb",
-                          padding: "8px 10px",
-                          fontSize: "0.85rem",
-                        }}
-                      />
-                    </div>
-                    <div style={{ minWidth: 120 }}>
-                      <label
-                        style={{ fontSize: "0.8rem", color: "#9ca3af" }}
-                      >
-                        Verschlüsselung
-                      </label>
-                      <select
-                        value={wifiAuth}
-                        onChange={(e) =>
-                          setWifiAuth(e.target.value as "WPA" | "WEP" | "nopass")
-                        }
-                        style={{
-                          width: "100%",
-                          borderRadius: 10,
-                          border: "1px solid rgba(148,163,184,0.4)",
-                          background: "rgba(15,23,42,0.9)",
-                          color: "#f9fafb",
-                          padding: "8px 10px",
-                          fontSize: "0.85rem",
-                        }}
-                      >
-                        <option value="WPA">WPA/WPA2</option>
-                        <option value="WEP">WEP</option>
-                        <option value="nopass">Offen</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: 8,
-                      alignItems: "flex-end",
-                    }}
-                  >
-                    <div style={{ flex: 1, minWidth: 140 }}>
-                      <label
-                        style={{ fontSize: "0.8rem", color: "#9ca3af" }}
-                      >
-                        Passwort
-                      </label>
-                      <input
-                        type="text"
-                        value={wifiPassword}
-                        onChange={(e) => setWifiPassword(e.target.value)}
-                        placeholder="leer bei offenem WLAN"
-                        style={{
-                          width: "100%",
-                          borderRadius: 10,
-                          border: "1px solid rgba(148,163,184,0.4)",
-                          background: "rgba(15,23,42,0.9)",
-                          color: "#f9fafb",
-                          padding: "8px 10px",
-                          fontSize: "0.85rem",
-                        }}
-                      />
-                    </div>
-                    <label
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 6,
-                        fontSize: "0.8rem",
-                        color: "#9ca3af",
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={wifiHidden}
-                        onChange={(e) => setWifiHidden(e.target.checked)}
-                      />
-                      Verstecktes Netzwerk
-                    </label>
-                  </div>
-                </div>
-              )}
-
-              {contentType === "email" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <div>
-                    <label
-                      style={{ fontSize: "0.8rem", color: "#9ca3af" }}
-                    >
-                      Empfänger
-                    </label>
-                    <input
-                      type="email"
-                      value={emailTo}
-                      onChange={(e) => setEmailTo(e.target.value)}
-                      placeholder="name@example.com"
-                      style={{
-                        width: "100%",
-                        borderRadius: 10,
-                        border: "1px solid rgba(148,163,184,0.4)",
-                        background: "rgba(15,23,42,0.9)",
-                        color: "#f9fafb",
-                        padding: "8px 10px",
-                        fontSize: "0.85rem",
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label
-                      style={{ fontSize: "0.8rem", color: "#9ca3af" }}
-                    >
-                      Betreff
-                    </label>
-                    <input
-                      type="text"
-                      value={emailSubject}
-                      onChange={(e) => setEmailSubject(e.target.value)}
-                      style={{
-                        width: "100%",
-                        borderRadius: 10,
-                        border: "1px solid rgba(148,163,184,0.4)",
-                        background: "rgba(15,23,42,0.9)",
-                        color: "#f9fafb",
-                        padding: "8px 10px",
-                        fontSize: "0.85rem",
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label
-                      style={{ fontSize: "0.8rem", color: "#9ca3af" }}
-                    >
-                      Nachricht
-                    </label>
-                    <textarea
-                      value={emailBody}
-                      onChange={(e) => setEmailBody(e.target.value)}
-                      rows={3}
-                      style={{
-                        width: "100%",
-                        borderRadius: 10,
-                        border: "1px solid rgba(148,163,184,0.4)",
-                        background: "rgba(15,23,42,0.9)",
-                        color: "#f9fafb",
-                        padding: "8px 10px",
-                        fontSize: "0.85rem",
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {contentType === "sms" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <div>
-                    <label
-                      style={{ fontSize: "0.8rem", color: "#9ca3af" }}
-                    >
-                      Nummer
-                    </label>
-                    <input
-                      type="tel"
-                      value={smsTo}
-                      onChange={(e) => setSmsTo(e.target.value)}
-                      placeholder="+491712345678"
-                      style={{
-                        width: "100%",
-                        borderRadius: 10,
-                        border: "1px solid rgba(148,163,184,0.4)",
-                        background: "rgba(15,23,42,0.9)",
-                        color: "#f9fafb",
-                        padding: "8px 10px",
-                        fontSize: "0.85rem",
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label
-                      style={{ fontSize: "0.8rem", color: "#9ca3af" }}
-                    >
-                      Nachricht
-                    </label>
-                    <textarea
-                      value={smsBody}
-                      onChange={(e) => setSmsBody(e.target.value)}
-                      rows={3}
-                      style={{
-                        width: "100%",
-                        borderRadius: 10,
-                        border: "1px solid rgba(148,163,184,0.4)",
-                        background: "rgba(15,23,42,0.9)",
-                        color: "#f9fafb",
-                        padding: "8px 10px",
-                        fontSize: "0.85rem",
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {contentType === "tel" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <label
-                    style={{ fontSize: "0.8rem", color: "#9ca3af" }}
-                  >
-                    Telefonnummer
-                  </label>
-                  <input
-                    type="tel"
-                    value={telNumber}
-                    onChange={(e) => setTelNumber(e.target.value)}
-                    placeholder="+491712345678"
-                    style={{
-                      width: "100%",
-                      borderRadius: 10,
-                      border: "1px solid rgba(148,163,184,0.4)",
-                      background: "rgba(15,23,42,0.9)",
-                      color: "#f9fafb",
-                      padding: "8px 10px",
-                      fontSize: "0.85rem",
-                    }}
-                  />
-                </div>
-              )}
-
-              {contentType === "vcard" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: 8,
-                    }}
-                  >
-                    <div style={{ flex: 1, minWidth: 140 }}>
-                      <label
-                        style={{ fontSize: "0.8rem", color: "#9ca3af" }}
-                      >
-                        Vorname
-                      </label>
-                      <input
-                        type="text"
-                        value={vcardFirst}
-                        onChange={(e) => setVcardFirst(e.target.value)}
-                        style={{
-                          width: "100%",
-                          borderRadius: 10,
-                          border: "1px solid rgba(148,163,184,0.4)",
-                          background: "rgba(15,23,42,0.9)",
-                          color: "#f9fafb",
-                          padding: "8px 10px",
-                          fontSize: "0.85rem",
-                        }}
-                      />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 140 }}>
-                      <label
-                        style={{ fontSize: "0.8rem", color: "#9ca3af" }}
-                      >
-                        Nachname
-                      </label>
-                      <input
-                        type="text"
-                        value={vcardLast}
-                        onChange={(e) => setVcardLast(e.target.value)}
-                        style={{
-                          width: "100%",
-                          borderRadius: 10,
-                          border: "1px solid rgba(148,163,184,0.4)",
-                          background: "rgba(15,23,42,0.9)",
-                          color: "#f9fafb",
-                          padding: "8px 10px",
-                          fontSize: "0.85rem",
-                        }}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label
-                      style={{ fontSize: "0.8rem", color: "#9ca3af" }}
-                    >
-                      Firma
-                    </label>
-                    <input
-                      type="text"
-                      value={vcardOrg}
-                      onChange={(e) => setVcardOrg(e.target.value)}
-                      style={{
-                        width: "100%",
-                        borderRadius: 10,
-                        border: "1px solid rgba(148,163,184,0.4)",
-                        background: "rgba(15,23,42,0.9)",
-                        color: "#f9fafb",
-                        padding: "8px 10px",
-                        fontSize: "0.85rem",
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label
-                      style={{ fontSize: "0.8rem", color: "#9ca3af" }}
-                    >
-                      Telefon
-                    </label>
-                    <input
-                      type="tel"
-                      value={vcardTel}
-                      onChange={(e) => setVcardTel(e.target.value)}
-                      style={{
-                        width: "100%",
-                        borderRadius: 10,
-                        border: "1px solid rgba(148,163,184,0.4)",
-                        background: "rgba(15,23,42,0.9)",
-                        color: "#f9fafb",
-                        padding: "8px 10px",
-                        fontSize: "0.85rem",
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label
-                      style={{ fontSize: "0.8rem", color: "#9ca3af" }}
-                    >
-                      E-Mail
-                    </label>
-                    <input
-                      type="email"
-                      value={vcardEmail}
-                      onChange={(e) => setVcardEmail(e.target.value)}
-                      style={{
-                        width: "100%",
-                        borderRadius: 10,
-                        border: "1px solid rgba(148,163,184,0.4)",
-                        background: "rgba(15,23,42,0.9)",
-                        color: "#f9fafb",
-                        padding: "8px 10px",
-                        fontSize: "0.85rem",
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* DESIGN-BLOCK */}
+          {/* Modul 2: Passwortgenerator */}
+          <Link href="/passwords" className="no-underline">
             <div
               style={{
-                marginTop: 10,
-                paddingTop: 10,
-                borderTop: "1px solid rgba(148,163,184,0.4)",
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-              }}
-            >
-              <h2 style={{ fontSize: "1rem", margin: 0 }}>Design</h2>
-
-              {/* Shape */}
-              <div
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  flexWrap: "wrap",
-                  alignItems: "flex-end",
-                }}
-              >
-                <div style={{ flex: 1, minWidth: 140 }}>
-                  <label style={{ fontSize: "0.8rem", color: "#9ca3af" }}>
-                    Punktform
-                  </label>
-                  <select
-                    value={dotsType}
-                    onChange={(e) =>
-                      setDotsType(e.target.value as DotsType)
-                    }
-                    style={{
-                      width: "100%",
-                      borderRadius: 10,
-                      border: "1px solid rgba(148,163,184,0.4)",
-                      background: "rgba(15,23,42,0.9)",
-                      color: "#f9fafb",
-                      padding: "8px 10px",
-                      fontSize: "0.85rem",
-                    }}
-                  >
-                    <option value="square">Quadrate</option>
-                    <option value="dots">Dots</option>
-                    <option value="rounded">Abgerundet</option>
-                    <option value="extra-rounded">Extra rund</option>
-                  </select>
-                </div>
-
-                {/* Export-Größe (nur Download, nicht Vorschau) */}
-                <div style={{ minWidth: 140 }}>
-                  <label style={{ fontSize: "0.8rem", color: "#9ca3af" }}>
-                    Export-Größe (px)
-                  </label>
-                  <input
-                    type="number"
-                    value={exportSize}
-                    min={160}
-                    max={2048}
-                    step={64}
-                    onChange={(e) => {
-                      const raw = parseInt(e.target.value || "1024", 10);
-                      const clamped = clampExportSize(raw);
-                      setExportSize(clamped);
-                    }}
-                    style={{
-                      width: "100%",
-                      borderRadius: 10,
-                      border: "1px solid rgba(148,163,184,0.4)",
-                      background: "rgba(15,23,42,0.9)",
-                      color: "#f9fafb",
-                      padding: "8px 10px",
-                      fontSize: "0.85rem",
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Farben / Gradients */}
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 6,
-                  marginTop: 4,
-                }}
-              >
-                <label
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    fontSize: "0.8rem",
-                    color: "#9ca3af",
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={useGradient}
-                    onChange={(e) => setUseGradient(e.target.checked)}
-                  />
-                  Farbverlauf für QR-Dots aktiv
-                </label>
-
-                {useGradient ? (
-                  <div
-                    style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: 6,
-                      marginTop: 2,
-                    }}
-                  >
-                    {(
-                      [
-                        {
-                          key: "indigoPinkGreen",
-                          label: "Rainbow",
-                          preview:
-                            "linear-gradient(90deg,#4f46e5,#ec4899,#22c55e)",
-                        },
-                        {
-                          key: "sunset",
-                          label: "Sunset",
-                          preview:
-                            "linear-gradient(90deg,#f97316,#ec4899,#6366f1)",
-                        },
-                        {
-                          key: "aqua",
-                          label: "Aqua",
-                          preview:
-                            "linear-gradient(90deg,#22c55e,#06b6d4,#0ea5e9)",
-                        },
-                        {
-                          key: "mono",
-                          label: "Mono",
-                          preview:
-                            "linear-gradient(90deg,#0f172a,#64748b)",
-                        },
-                      ] as { key: GradientPreset; label: string; preview: string }[]
-                    ).map((preset) => (
-                      <button
-                        key={preset.key}
-                        type="button"
-                        onClick={() => setGradientPreset(preset.key)}
-                        style={{
-                          borderRadius: 999,
-                          border:
-                            gradientPreset === preset.key
-                              ? "1px solid rgba(191,219,254,0.9)"
-                              : "1px solid rgba(148,163,184,0.5)",
-                          padding: "3px 10px",
-                          fontSize: "0.75rem",
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 6,
-                          background:
-                            gradientPreset === preset.key
-                              ? "rgba(15,23,42,0.95)"
-                              : "rgba(15,23,42,0.8)",
-                        }}
-                      >
-                        <span
-                          style={{
-                            width: 22,
-                            height: 10,
-                            borderRadius: 999,
-                            background: preset.preview,
-                          }}
-                        />
-                        {preset.label}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 10,
-                      flexWrap: "wrap",
-                      alignItems: "center",
-                    }}
-                  >
-                    <div
-                      style={{ display: "flex", flexDirection: "column" }}
-                    >
-                      <span
-                        style={{
-                          fontSize: "0.75rem",
-                          color: "#9ca3af",
-                          marginBottom: 2,
-                        }}
-                      >
-                        Vordergrund
-                      </span>
-                      <input
-                        type="color"
-                        value={fgColor}
-                        onChange={(e) => setFgColor(e.target.value)}
-                        style={{
-                          width: 40,
-                          height: 24,
-                          borderRadius: 6,
-                          border: "none",
-                        }}
-                      />
-                    </div>
-                    <div
-                      style={{ display: "flex", flexDirection: "column" }}
-                    >
-                      <span
-                        style={{
-                          fontSize: "0.75rem",
-                          color: "#9ca3af",
-                          marginBottom: 2,
-                        }}
-                      >
-                        Hintergrund
-                      </span>
-                      <input
-                        type="color"
-                        value={bgColor}
-                        onChange={(e) => setBgColor(e.target.value)}
-                        style={{
-                          width: 40,
-                          height: 24,
-                          borderRadius: 6,
-                          border: "none",
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Logo + Download */}
-              <div style={{ marginTop: 6 }}>
-                <label style={{ fontSize: "0.8rem", color: "#9ca3af" }}>
-                  Logo-URL (optional, Mitte)
-                </label>
-                <input
-                  type="text"
-                  value={logoUrl}
-                  onChange={(e) => setLogoUrl(e.target.value.trim())}
-                  placeholder="https://…/logo.png"
-                  style={{
-                    width: "100%",
-                    borderRadius: 10,
-                    border: "1px solid rgba(148,163,184,0.4)",
-                    background: "rgba(15,23,42,0.9)",
-                    color: "#f9fafb",
-                    padding: "8px 10px",
-                    fontSize: "0.85rem",
-                  }}
-                />
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  gap: 8,
-                  marginTop: 10,
-                  flexWrap: "wrap",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    fontSize: "0.8rem",
-                    color: "#9ca3af",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    Format:
-                    <select
-                      value={downloadFormat}
-                      onChange={(e) =>
-                        setDownloadFormat(e.target.value as DownloadFormat)
-                      }
-                      style={{
-                        borderRadius: 999,
-                        border: "1px solid rgba(148,163,184,0.5)",
-                        background: "rgba(15,23,42,0.9)",
-                        color: "#f9fafb",
-                        padding: "3px 8px",
-                        fontSize: "0.8rem",
-                      }}
-                    >
-                      <option value="png">PNG</option>
-                      <option value="svg">SVG</option>
-                    </select>
-                  </label>
-
-                  <label
-                    style={{ display: "flex", alignItems: "center", gap: 4 }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={animatedBg}
-                      onChange={(e) => setAnimatedBg(e.target.checked)}
-                    />
-                    animierter Hintergrund
-                  </label>
-                </div>
-
-                <button
-                  onClick={handleDownload}
-                  style={{
-                    borderRadius: 999,
-                    border: "1px solid rgba(191,219,254,0.6)",
-                    background:
-                      "linear-gradient(135deg, #4f46e5, #6366f1)",
-                    color: "#eef2ff",
-                    padding: "8px 16px",
-                    fontSize: "0.85rem",
-                    fontWeight: 500,
-                    cursor: "pointer",
-                    boxShadow: "0 14px 35px rgba(79,70,229,0.6)",
-                  }}
-                >
-                  Download {exportSize}×{exportSize} (
-                  {downloadFormat.toUpperCase()})
-                </button>
-              </div>
-            </div>
-          </section>
-
-          {/* RIGHT: Preview */}
-          <section
-            style={{
-              borderRadius: 22,
-              padding: "16px 16px 14px",
-              background:
-                "radial-gradient(circle at top right, rgba(79,70,229,0.16), transparent 55%)," +
-                "linear-gradient(145deg, rgba(15,23,42,0.98), rgba(15,23,42,0.9))",
-              border: "1px solid rgba(148,163,184,0.4)",
-              boxShadow: "0 24px 60px rgba(15,23,42,0.7)",
-              display: "flex",
-              flexDirection: "column",
-              gap: 14,
-            }}
-          >
-            <h2 style={{ fontSize: "1rem", margin: 0 }}>Vorschau</h2>
-
-            <div
-              style={{
-                padding: "16px 8px 8px",
-                display: "flex",
-                justifyContent: "center",
+                borderRadius: 22,
+                padding: "18px 18px 20px",
+                background: tileBgPrimary,
+                border: tileBorderPrimary,
+                boxShadow: darkMode
+                  ? "0 18px 45px rgba(0,0,0,0.45)"
+                  : "0 10px 25px rgba(15,23,42,0.12)",
+                cursor: "pointer",
               }}
             >
               <div
-                id="qr-preview"
-                ref={ref}
-                className={animatedBg ? "qr-animated" : undefined}
                 style={{
-                  width: PREVIEW_SIZE,
-                  height: PREVIEW_SIZE,
-                  borderRadius: 18,
-                  border: "1px dashed rgba(148,163,184,0.45)",
-                  background:
-                    "radial-gradient(circle at top left, rgba(15,23,42,0.85), rgba(15,23,42,0.98))",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: 12,
-                  overflow: "hidden",
+                  opacity: 0.6,
+                  fontSize: "0.75rem",
+                  letterSpacing: "0.12em",
+                  textTransform: "uppercase",
+                  marginBottom: 6,
                 }}
-              />
+              >
+                Modul
+              </div>
+              <div
+                style={{
+                  fontSize: "1.2rem",
+                  fontWeight: 600,
+                  marginBottom: 6,
+                }}
+              >
+                Passwortgenerator
+              </div>
+              <p style={{ opacity: 0.75, fontSize: "0.85rem" }}>
+                Sichere Passwörter direkt im Browser generieren – mit
+                konfigurierbarer Länge und Zeichentypen.
+              </p>
             </div>
+          </Link>
 
+          {/* Modul 3: IP Info */}
+          <Link href="/ip-info" className="no-underline">
             <div
               style={{
-                fontSize: "0.8rem",
-                color: "#9ca3af",
-                borderRadius: 14,
-                border: "1px dashed rgba(148,163,184,0.4)",
-                background: "rgba(15,23,42,0.85)",
-                padding: "10px 12px",
+                borderRadius: 22,
+                padding: "18px 18px 20px",
+                background: tileBgPrimary,
+                border: tileBorderPrimary,
+                boxShadow: darkMode
+                  ? "0 18px 45px rgba(0,0,0,0.45)"
+                  : "0 10px 25px rgba(15,23,42,0.12)",
+                cursor: "pointer",
               }}
             >
-              <ul style={{ margin: 0, paddingLeft: 16 }}>
-                <li>Logo nicht größer als ~30 % der Kantenlänge setzen.</li>
-                <li>Bei starken Gradients immer mit echten Geräten testen.</li>
-                <li>SVG für Druck, PNG für schnelle Nutzung / Messenger.</li>
-              </ul>
+              <div
+                style={{
+                  opacity: 0.6,
+                  fontSize: "0.75rem",
+                  letterSpacing: "0.12em",
+                  textTransform: "uppercase",
+                  marginBottom: 6,
+                }}
+              >
+                Modul
+              </div>
+              <div
+                style={{
+                  fontSize: "1.2rem",
+                  fontWeight: 600,
+                  marginBottom: 6,
+                }}
+              >
+                IP &amp; Network Info
+              </div>
+              <p style={{ opacity: 0.75, fontSize: "0.85rem" }}>
+                Öffentliche IP, Provider, Geolocation und
+                Browser-Netzwerkdaten auf einen Blick – alles clientseitig
+                ermittelt.
+              </p>
             </div>
-          </section>
-        </main>
+          </Link>
+        </section>
       </div>
     </div>
   );
